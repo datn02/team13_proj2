@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Run code in ee4308 turtle -->
+    <include file="$(find ee4308_turtle)/launch/run.launch" ns="turtle"/>
+
+    <!-- Run code in ee4308 hector -->
+    <include file="$(find ee4308_hector)/launch/run.launch" ns="hector"/>
+</launch>
