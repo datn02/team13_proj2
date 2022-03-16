@@ -1,0 +1,8 @@
+build/*
+devel/*
+build
+devel
+.vscode/*
+.vscode
+src/.vscode/*
+src/.vscode
