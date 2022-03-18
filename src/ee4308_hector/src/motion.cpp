@@ -27,10 +27,26 @@ const double G = 9.8;
 double prev_imu_t = 0;
 cv::Matx21d X = {0, 0}, Y = {0, 0}; // see intellisense. This is equivalent to cv::Matx<double, 2, 1>
 cv::Matx21d A = {0, 0};
-cv::Matx21d Z = {0, 0};
+cv::Matx31d Z = {0, 0, 0}; // 3x3 to use barometer
+
+// matrix to store previous corrected states
+/*
+cv::Matx21d X_prev = X;
+cv::Matx21d Y_prev = Y;
+cv::Matx21d A_prev = A;
+cv::Matx21d Z_prev = Z;
+*/
 cv::Matx22d P_x = cv::Matx22d::ones(), P_y = cv::Matx22d::zeros();
 cv::Matx22d P_a = cv::Matx22d::ones();
-cv::Matx22d P_z = cv::Matx22d::ones();
+cv::Matx33d P_z = cv::Matx33d::ones(); // 3x3 to use barometer
+
+// matrix to store previous corrected covariances
+/*
+cv::Matx22d P_x_prev = cv::Matx22d::ones(), P_y_prev = cv::Matx22d::zeros();
+cv::Matx22d P_a_prev = cv::Matx22d::ones();
+cv::Matx22d P_z_prev = cv::Matx22d::ones();
+*/
+
 double ua = NaN, ux = NaN, uy = NaN, uz = NaN;
 double qa, qx, qy, qz;
 // see https://docs.opencv.org/3.4/de/de1/classcv_1_1Matx.html
@@ -54,6 +70,55 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
     uz = msg->linear_acceleration.z;
     
     //// IMPLEMENT IMU ////
+
+    // F matrix
+    cv::Matx22d F_x = {1, imu_dt, 0, 1};
+    cv::Matx22d F_y = {1, imu_dt, 0, 1};
+    cv::Matx33d F_z = { 1, imu_dt, 0,  // 3x3 to use barometer
+                        0, 1, 0,
+                        0, 0, 1};
+    cv::Matx22d F_a = {1, 0, 0, 0};    
+
+    // W matrix
+    cv::Matx22d W_x = {-0.5 * imu_dt * imu_dt * cos(A(0)), 0.5 * imu_dt * imu_dt * sin(A(0)),
+                       -1 * imu_dt * cos(A(0)),             imu_dt * sin(A(0))};
+
+    cv::Matx22d W_y = {-0.5 * imu_dt * imu_dt * sin(A(0)), -0.5 * imu_dt * imu_dt * cos(A(0)),
+                        -imu_dt * sin(A(0)),                -imu_dt * cos(A(0))};
+
+    cv::Matx31d W_z = {0.5 * imu_dt * imu_dt, imu_dt, 0}; // 3x1 to use barometer
+    cv::Matx21d W_a = {imu_dt, 1};
+
+    // U matrix
+    cv::Matx21d U_x = {ux, uy};
+    cv::Matx21d U_y = {ux, uy};
+    cv::Matx<double, 1, 1> U_z = {uz - G};
+    cv::Matx<double, 1, 1> U_a = {ua};
+    
+
+    // Q matrix
+    cv::Matx22d Q_x = {qx * qx, 0, 0, qy * qy};
+    cv::Matx22d Q_y = {qx * qx, 0, 0, qy * qy};
+    cv::Matx<double, 1, 1> Q_z = {qz * qz};
+    cv::Matx<double, 1, 1> Q_a = {qa * qa};
+
+    // Predict next state
+    
+    // x axis
+    X = F_x * X + W_x * U_x; // X_prev
+    P_x = F_x * P_x * F_x.t() + W_x * Q_x * W_x.t();
+
+    // y axis
+    Y = F_y * Y + W_y * U_y; // Y_prev
+    P_y = F_y * P_y * F_y.t() + W_y * Q_y * W_y.t();
+
+    // z axis
+    Z = F_z * Z + W_z * U_z; // Z_prev
+    P_z = F_z * P_z * P_z.t() + W_z * Q_z * W_z.t();
+
+    // angle psi
+    A = F_a * A + W_a * U_a; // A_prev
+    P_a = F_a * P_a * F_a.t() + W_a * Q_a * W_a.t();
 }
 
 // --------- GPS ----------
@@ -61,26 +126,126 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
 cv::Matx31d GPS = {NaN, NaN, NaN};
 cv::Matx31d initial_pos = {NaN, NaN, NaN}; // written below in main. no further action needed.
 const double DEG2RAD = M_PI / 180;
-const double RAD_POLAR = 6356752.3;
-const double RAD_EQUATOR = 6378137;
+const double RAD_POLAR = 6356752.3; // b
+const double RAD_EQUATOR = 6378137; // a
 double r_gps_x, r_gps_y, r_gps_z;
+
+// initial GPS position
+static cv::Matx31d initial_ECEF = {NaN, NaN, NaN};
 void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
 {
     if (!ready)
         return;
 
     //// IMPLEMENT GPS /////
-    // double lat = msg->latitude;
-    // double lon = msg->longitude;
-    // double alt = msg->altitude;
+    double lat = msg->latitude;
+    double lon = msg->longitude;
+    double alt = msg->altitude;
+
+    lat = lat * DEG2RAD;
+    lon = lon * DEG2RAD;
     
+    double e = 1 - ((RAD_POLAR * RAD_POLAR) / (RAD_EQUATOR * RAD_EQUATOR));
+    double N_phi = RAD_EQUATOR / (sqrt(1 - e * e * sin(lat) * sin(lat)));
+
+    cv::Matx31d ECEF = {(N_phi + alt) * cos(lat) * cos(lon), (N_phi + alt) * cos(lat) * sin(lon), 
+                (((RAD_POLAR * RAD_POLAR) / (RAD_EQUATOR * RAD_EQUATOR)) * N_phi + alt) * cos(lat) * sin(lat)};
+    
+
     // // for initial message -- you may need this:
-    // if (std::isnan(initial_ECEF(0)))
-    // {   // calculates initial ECEF and returns
-    //     initial_ECEF = ECEF;
-    //     return;
-    // }
+    if (std::isnan(initial_ECEF(0)))
+    {   // calculates initial ECEF and returns
+        initial_ECEF = ECEF;
+        return;
+    }
+
+    // rotational matrix from ECEF to local NED
+    cv::Matx33d Re_n = {-sin(lat) * cos(lon), -sin(lon), -cos(lat) * cos(lon), 
+                        -sin(lat) * sin(lon), -cos(lon), -cos(lat) * sin(lon), 
+                        cos(lat), 0, -sin(lon)};
     
+    // local NED matrix
+    cv::Matx31d NED = Re_n * (ECEF - initial_ECEF);
+
+    // rotational matrix from local NED to Gazebo frame
+    cv::Matx33d Rm_n = {1, 0, 0,
+                        0, -1, 0,
+                        0, 0, -1};
+
+    // GPS position in gazebo frame
+    GPS = Rm_n * NED + initial_pos;
+
+    // EKF correction
+
+    // Common matrixes - H and V
+    cv::Matx12d H = {1, 0};
+    cv::Matx<double, 1, 1> V = {1};
+    
+    // -------x axis--------
+    // Y matrix
+    cv::Matx<double, 1, 1> Y_x = {GPS(0)};
+
+    // forward sensor model
+    cv::Matx<double, 1, 1> sensor_x = {X(0)};
+
+    // R matrix
+    cv::Matx<double, 1, 1> R_x = {r_gps_x};
+    
+    // Kalman gain K (2x1 matrix)
+    cv::Matx21d K_x = P_x * H.t() * (H * P_x * H.t() + V * R_x * V).inv();
+
+    // correct state and state covariance
+    X = X + K_x * (Y_x - sensor_x);
+    P_x = P_x - K_x * H * P_x;
+
+    // set previous state and covariance matrixes
+    //X_prev = X;
+    //P_x_prev = P_x;
+
+    // -------y axis--------
+    // Y matrix
+    cv::Matx<double, 1, 1> Y_y = {GPS(1)};
+
+    // forward sensor model
+    cv::Matx<double,1 ,1> sensor_y = {Y(0)};
+
+    // R matrix
+    cv::Matx<double, 1, 1> R_y = {r_gps_y};
+
+    // Kalman gain K (2x1 matrix)
+    cv::Matx21d K_y = P_y * H.t() * (H * P_y * H.t() + V * R_y * V).inv();
+
+    // correct state and state covariance
+    Y = Y + K_y * (Y_y - sensor_y);
+    P_y = P_y - K_y * H * P_y;
+
+    // set previous state and covariance matrix
+    //Y_prev = Y;
+    //P_y_prev = P_y;
+
+    // -------z axis--------
+    // H_z matrix since we using barometer
+    cv::Matx13d H_z = {1, 0, 0};
+
+    // Y matrix
+    cv::Matx<double, 1, 1> Y_z = {GPS(2)};
+
+    // forward sensor model
+    cv::Matx<double, 1, 1> sensor_z = {Z(0)};
+
+    // R matrix
+    cv::Matx<double, 1, 1> R_z = {r_gps_z};
+
+    // Kalman gain K (3x1 matrix)
+    cv::Matx31d K_z = P_z * H_z.t() * (H_z * P_z * H_z.t() + V * R_z * V).inv();
+
+    // correct state and state covariance
+    Z = Z + K_z * (Y_z - sensor_z);
+    P_z = P_z - K_z * H_z * P_z;
+
+    // set previous state and covariance matrix
+    //Z_prev = Z;
+    //P_z_prev = P_z;
 }
 
 // --------- Magnetic ----------
@@ -92,34 +257,109 @@ void cbMagnet(const geometry_msgs::Vector3Stamped::ConstPtr &msg)
         return;
     
     //// IMPLEMENT GPS ////
-    // double mx = msg->vector.x;
-    // double my = msg->vector.y;
+    double mx = msg->vector.x;
+    double my = msg->vector.y;
+
+    double alpha = atan2f(my, mx);
+    a_mgn = 2 * M_PI - alpha;
+
+    // Y matrix
+    cv::Matx<double, 1, 1> Y_a = {a_mgn};
+
+    // forward sensor model
+    cv::Matx<double, 1, 1> sensor_a = {A(0)};
+
+    // H and V matrixes
+    cv::Matx12d H = {1, 0};
+    cv::Matx<double, 1, 1> V = {1};
+
+    // R matrix
+    cv::Matx<double, 1, 1> R_a = {r_mgn_a};
+
+    // Kalman gain K (2x1 matrix)
+    cv::Matx21d K_a = P_a * H.t() * (H * P_a * H.t() + V * R_a * V).inv();
+
+    // correct state and state covariance
+    A = A + K_a * (Y_a - sensor_a);
+    P_a = P_a - K_a * H * P_a;
+
+    // set previous state and covariance matrix
+    //A_prev = A;
+    //P_a_prev = P_a;
 }
 
 // --------- Baro ----------
 double z_bar = NaN;
 double r_bar_z;
+// z_bar = z_k + bias + N(0, r_bar_z)
+// So H = {1, 0, 1}
 void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
 {
     if (!ready)
         return;
 
     //// IMPLEMENT BARO ////
-    // z_bar = msg->altitude;
+    z_bar = msg->altitude;
 
+    // Y matrix
+    cv::Matx<double, 1, 1> Y_z_bar = {z_bar - Z(2)};
+
+    // forward sensor model
+    cv::Matx<double, 1, 1> sensor_z_bar = {Z(0)};
+
+    // H and V matrix
+    cv::Matx13d H_z_bar = {1, 0, 1};
+    cv::Matx<double, 1, 1> V_z_bar = {1};
+
+    // R matrix
+    cv::Matx<double, 1, 1> R_z_bar = {r_bar_z};
+
+    // Kalman gain K (3x1 matrix)
+    cv::Matx31d K_z_bar = P_z * H_z_bar.t() * (H_z_bar * P_z * H_z_bar.t() + V_z_bar * R_z_bar * V_z_bar).inv();
+
+    // correct state and state covariance
+    Z = Z + K_z_bar * (Y_z_bar - sensor_z_bar);
+    P_z = P_z - K_z_bar * H_z_bar * P_z;
 }
 
 // --------- Sonar ----------
 double z_snr = NaN;
 double r_snr_z;
+const double OBSTACLE_THRESH = 0.5;
 void cbSonar(const sensor_msgs::Range::ConstPtr &msg)
 {
     if (!ready)
         return;
 
     //// IMPLEMENT SONAR ////
-    // z_snr = msg->range;
+    z_snr = msg->range;
 
+    // implement a check here
+    // if the difference too large, means obstacle underneath
+    // no correction is performed
+    if (fabs(z_snr - Z(0)) > OBSTACLE_THRESH + 1e-5) {
+        return;
+    }
+    
+    // Y matrix
+    cv::Matx<double, 1, 1> Y_z_snr = {z_snr};
+
+    // forward sensor model
+    cv::Matx<double, 1, 1> sensor_z_snr = {Z(0)};
+
+    // H and V matrices
+    cv::Matx13d H_z_snr = {1, 0, 0};
+    cv::Matx<double, 1, 1> V_z_snr = {1};
+
+    // R matrix
+    cv::Matx<double, 1, 1> R_z_snr = {r_snr_z};
+
+    // Kalman gain (3x1 matrix) 
+    cv::Matx31d K_z_snr = P_z * H_z_snr.t() * (H_z_snr * P_z * H_z_snr.t() + V_z_snr * R_z_snr * V_z_snr).inv();
+
+    // correct state and state covariance
+    Z = Z + K_z_snr * (Y_z_snr - sensor_z_snr);
+    P_z = P_z - K_z_snr * H_z_snr * P_z;
 }
 
 // --------- GROUND TRUTH ----------
