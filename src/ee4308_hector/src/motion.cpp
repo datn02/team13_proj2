@@ -149,7 +149,7 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
     double N_phi = RAD_EQUATOR / (sqrt(1 - e * e * sin(lat) * sin(lat)));
 
     cv::Matx31d ECEF = {(N_phi + alt) * cos(lat) * cos(lon), (N_phi + alt) * cos(lat) * sin(lon), 
-                (((RAD_POLAR * RAD_POLAR) / (RAD_EQUATOR * RAD_EQUATOR)) * N_phi + alt) * cos(lat) * sin(lat)};
+                (((RAD_POLAR * RAD_POLAR) / (RAD_EQUATOR * RAD_EQUATOR)) * N_phi + alt) * sin(lat)};
     
 
     // // for initial message -- you may need this:
@@ -161,11 +161,11 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
 
     // rotational matrix from ECEF to local NED
     cv::Matx33d Re_n = {-sin(lat) * cos(lon), -sin(lon), -cos(lat) * cos(lon), 
-                        -sin(lat) * sin(lon), -cos(lon), -cos(lat) * sin(lon), 
+                        -sin(lat) * sin(lon), cos(lon), -cos(lat) * sin(lon), 
                         cos(lat), 0, -sin(lon)};
     
     // local NED matrix
-    cv::Matx31d NED = Re_n * (ECEF - initial_ECEF);
+    cv::Matx31d NED = Re_n.t() * (ECEF - initial_ECEF);
 
     // rotational matrix from local NED to Gazebo frame
     cv::Matx33d Rm_n = {1, 0, 0,
