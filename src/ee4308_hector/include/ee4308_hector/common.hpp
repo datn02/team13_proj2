@@ -14,6 +14,7 @@ struct Position
     Position(double x, double y);
 };
 double sign(double value); // sign function not defined in cmath
+double sat(double input_value, double max_value);
 double dist_oct(Index src, Index tgt);
 double dist_oct(Position src, Position tgt);
 double dist_oct(double src_x, double src_y, double tgt_x, double tgt_y);

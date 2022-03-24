@@ -14,6 +14,19 @@ double sign(double value)
     else
         return 0;
 }
+
+double sat(double input_value, double max_value) {
+    if (input_value > max_value) {
+    	return max_value;
+    }
+    else if (input_value < (-1 * max_value)) {
+    	return (-1 * max_value);
+    } 
+    else {
+    	return input_value;
+    }
+}
+
 double dist_oct(Index src, Index tgt)
 {
     return dist_oct(src.i, src.j, tgt.i, tgt.j);
