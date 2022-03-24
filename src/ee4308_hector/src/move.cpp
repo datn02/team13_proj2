@@ -130,6 +130,57 @@ int main(int argc, char **argv)
     double dt;
     double prev_time = ros::Time::now().toSec();
 
+    // -------PID VARIABLES------- //
+    double pid_x_p_term = 0;
+    double pid_x_i_accum = 0;
+    double pid_x_i_term = 0;
+    double pid_x_d_term = 0;
+
+    double pid_y_p_term = 0;
+    double pid_y_i_accum = 0;
+    double pid_y_i_term = 0;
+    double pid_y_d_term = 0;
+
+    double pid_z_p_term = 0;
+    double pid_z_i_accum = 0;
+    double pid_z_i_term = 0;
+    double pid_z_d_term = 0;
+
+    double pid_a_p_term = 0;
+    double pid_a_i_accum = 0;
+    double pid_a_i_term = 0;
+    double pid_a_d_term = 0;
+
+    // intermediate outputs
+    double pid_x_output, pid_y_output, pid_z_output;
+
+    // saturated pid outputs
+    double pid_x_output_sat;
+    double pid_x_output_sat_prev = 0;
+
+    double pid_y_output_sat;
+    double pid_y_output_sat_prev = 0;
+
+    double pid_z_output_sat;
+    double pid_z_output_sat_prev = 0;
+
+    // acceleration variables for pid saturation
+    double acc_x_est;
+    double acc_y_est;
+    double acc_z_est;
+
+    // positional errors
+    double pos_x_err;
+    double pos_x_err_prev = 0;
+
+    double pos_y_err;
+    double pos_y_err_prev = 0;
+
+    double pos_z_err;
+    double pos_z_err_prev = 0;
+    //-----------------------------//
+
+
     // main loop
     while (ros::ok() && nh.param("run", true))
     {
@@ -141,6 +192,60 @@ int main(int argc, char **argv)
             continue;
         prev_time += dt;
 
+        //-------PID CONTROLLER-------//
+        pos_x_err = target_x - x;
+        pos_y_err = target_y - y;
+        pos_z_err = target_z - z;
+
+        // positional pid terms
+        pid_x_p_term = Kp_lin * pos_x_err;
+        pid_y_p_term = Kp_lin * pos_y_err;
+        pid_z_p_term = Kp_z * pos_z_err;
+
+        pid_x_i_accum += pos_x_err * dt;
+        pid_y_i_accum += pos_y_err * dt;
+        pid_z_i_accum += pos_z_err * dt;
+
+        pid_x_i_term = Ki_lin * pid_x_i_accum;
+        pid_y_i_term = Ki_lin * pid_y_i_accum;
+        pid_z_i_term = Ki_z * pid_z_i_accum;
+
+        pid_x_d_term = Kd_lin * (pos_x_err - pos_x_err_prev);
+        pid_y_d_term = Kd_lin * (pos_y_err - pos_y_err_prev);
+        pid_z_d_term = Kd_z * (pos_z_err - pos_z_err_prev);
+
+        // intermediate pid outputs
+        pid_x_output = pid_x_p_term + pid_x_i_term + pid_x_d_term;
+        pid_y_output = pid_y_p_term + pid_y_i_term + pid_y_d_term;
+        pid_z_output = pid_z_p_term + pid_z_i_term + pid_z_d_term;
+
+        // pid saturation calculation
+        // x
+        acc_x_est = (pid_x_output - pid_x_output_sat_prev) / dt;
+        pid_x_output_sat = sat(pid_x_output_sat_prev + acc_x_est * dt, max_lin_vel);
+
+        // y
+        acc_y_est = (pid_y_output - pid_y_output_sat_prev) / dt;
+        pid_y_output_sat = sat(pid_y_output_sat_prev + acc_y_est * dt, max_lin_vel);
+
+        // z
+        acc_z_est = (pid_z_output - pid_z_output_sat_prev) / dt;
+        pid_z_output_sat = sat(pid_z_output_sat_prev + acc_z_est * dt, max_z_vel);
+
+        // set to variable to publish
+        cmd_lin_vel_x = pid_x_output_sat;
+        cmd_lin_vel_y = pid_y_output_sat;
+        cmd_lin_vel_z = pid_z_output_sat;
+
+        if (rotate) {
+            cmd_lin_vel_a = yaw_rate;
+        }
+        else {
+            cmd_lin_vel_a = 0;
+        }
+
+
+
         // publish speeds
         msg_cmd.linear.x = cmd_lin_vel_x;
         msg_cmd.linear.y = cmd_lin_vel_y;
@@ -149,7 +254,14 @@ int main(int argc, char **argv)
         pub_cmd.publish(msg_cmd);
 
         //// IMPLEMENT /////
-        
+        pos_x_err_prev = pos_x_err;
+        pos_y_err_prev = pos_y_err;
+        pos_z_err_prev = pos_z_err;
+
+        pid_x_output_sat_prev = pid_x_output_sat;
+        pid_y_output_sat_prev = pid_y_output_sat;
+        pid_z_output_sat_prev = pid_z_output_sat;
+
         // verbose
         if (verbose)
         {
