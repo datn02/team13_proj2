@@ -6,3 +6,4 @@ devel
 .vscode
 src/.vscode/*
 src/.vscode
+*.txt
