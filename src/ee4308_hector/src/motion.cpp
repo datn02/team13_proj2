@@ -13,6 +13,9 @@
 #include <std_srvs/Empty.h>                          // Service to calrbrate motors
 #include <opencv2/core/core.hpp>
 #include "common.hpp"
+#include <string>
+#include <fstream>
+
 
 #define NaN std::numeric_limits<double>::quiet_NaN()
 
@@ -28,24 +31,14 @@ double prev_imu_t = 0;
 cv::Matx21d X = {0, 0}, Y = {0, 0}; // see intellisense. This is equivalent to cv::Matx<double, 2, 1>
 cv::Matx21d A = {0, 0};
 cv::Matx31d Z = {0, 0, 0}; // 3x3 to use barometer
+//cv::Matx21d Z = {0, 0};
 
-// matrix to store previous corrected states
-/*
-cv::Matx21d X_prev = X;
-cv::Matx21d Y_prev = Y;
-cv::Matx21d A_prev = A;
-cv::Matx21d Z_prev = Z;
-*/
+
 cv::Matx22d P_x = cv::Matx22d::ones(), P_y = cv::Matx22d::zeros();
 cv::Matx22d P_a = cv::Matx22d::ones();
 cv::Matx33d P_z = cv::Matx33d::ones(); // 3x3 to use barometer
+//cv::Matx22d P_z = cv::Matx22d::ones();
 
-// matrix to store previous corrected covariances
-/*
-cv::Matx22d P_x_prev = cv::Matx22d::ones(), P_y_prev = cv::Matx22d::zeros();
-cv::Matx22d P_a_prev = cv::Matx22d::ones();
-cv::Matx22d P_z_prev = cv::Matx22d::ones();
-*/
 
 double ua = NaN, ux = NaN, uy = NaN, uz = NaN;
 double qa, qx, qy, qz;
@@ -74,9 +67,12 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
     // F matrix
     cv::Matx22d F_x = {1, imu_dt, 0, 1};
     cv::Matx22d F_y = {1, imu_dt, 0, 1};
+    
     cv::Matx33d F_z = { 1, imu_dt, 0,  // 3x3 to use barometer
                         0, 1, 0,
                         0, 0, 1};
+    
+    //cv::Matx22d F_z = {1, imu_dt, 0, 1};
     cv::Matx22d F_a = {1, 0, 0, 0};    
 
     // W matrix
@@ -97,10 +93,10 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
     
 
     // Q matrix
-    cv::Matx22d Q_x = {qx * qx, 0, 0, qy * qy};
-    cv::Matx22d Q_y = {qx * qx, 0, 0, qy * qy};
-    cv::Matx<double, 1, 1> Q_z = {qz * qz};
-    cv::Matx<double, 1, 1> Q_a = {qa * qa};
+    cv::Matx22d Q_x = {qx, 0, 0, qy};
+    cv::Matx22d Q_y = {qx, 0, 0, qy};
+    cv::Matx<double, 1, 1> Q_z = {qz};
+    cv::Matx<double, 1, 1> Q_a = {qa};
 
     // Predict next state
     
@@ -145,11 +141,11 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
     lat = lat * DEG2RAD;
     lon = lon * DEG2RAD;
     
-    double e = 1 - ((RAD_POLAR * RAD_POLAR) / (RAD_EQUATOR * RAD_EQUATOR));
-    double N_phi = RAD_EQUATOR / (sqrt(1 - e * e * sin(lat) * sin(lat)));
+    double e_sqr = 1 - ((RAD_POLAR * RAD_POLAR) / (RAD_EQUATOR * RAD_EQUATOR));
+    double N_phi = RAD_EQUATOR / (sqrt(1 - e_sqr * sin(lat) * sin(lat)));
 
     cv::Matx31d ECEF = {(N_phi + alt) * cos(lat) * cos(lon), (N_phi + alt) * cos(lat) * sin(lon), 
-                (((RAD_POLAR * RAD_POLAR) / (RAD_EQUATOR * RAD_EQUATOR)) * N_phi + alt) * sin(lat)};
+                ((((RAD_POLAR * RAD_POLAR) / (RAD_EQUATOR * RAD_EQUATOR)) * N_phi) + alt) * sin(lat)};
     
 
     // // for initial message -- you may need this:
@@ -160,9 +156,9 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
     }
 
     // rotational matrix from ECEF to local NED
-    cv::Matx33d Re_n = {-sin(lat) * cos(lon), -sin(lon), -cos(lat) * cos(lon), 
-                        -sin(lat) * sin(lon), cos(lon), -cos(lat) * sin(lon), 
-                        cos(lat), 0, -sin(lon)};
+    cv::Matx33d Re_n = {-1 * sin(lat) * cos(lon), -1 * sin(lon), -1 * cos(lat) * cos(lon), 
+                        -1 * sin(lat) * sin(lon), cos(lon), -1 * cos(lat) * sin(lon), 
+                        cos(lat), 0, -1 * sin(lat)};
     
     // local NED matrix
     cv::Matx31d NED = Re_n.t() * (ECEF - initial_ECEF);
@@ -192,7 +188,7 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
     cv::Matx<double, 1, 1> R_x = {r_gps_x};
     
     // Kalman gain K (2x1 matrix)
-    cv::Matx21d K_x = P_x * H.t() * (H * P_x * H.t() + V * R_x * V).inv();
+    cv::Matx21d K_x = P_x * H.t() * ((H * P_x * H.t() + V * R_x * V).inv());
 
     // correct state and state covariance
     X = X + K_x * (Y_x - sensor_x);
@@ -213,19 +209,18 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
     cv::Matx<double, 1, 1> R_y = {r_gps_y};
 
     // Kalman gain K (2x1 matrix)
-    cv::Matx21d K_y = P_y * H.t() * (H * P_y * H.t() + V * R_y * V).inv();
+    cv::Matx21d K_y = P_y * H.t() * ((H * P_y * H.t() + V * R_y * V).inv());
 
     // correct state and state covariance
     Y = Y + K_y * (Y_y - sensor_y);
     P_y = P_y - K_y * H * P_y;
 
-    // set previous state and covariance matrix
-    //Y_prev = Y;
-    //P_y_prev = P_y;
-
     // -------z axis--------
     // H_z matrix since we using barometer
+    
     cv::Matx13d H_z = {1, 0, 0};
+    
+    //cv::Matx12d H_z = {1, 0};
 
     // Y matrix
     cv::Matx<double, 1, 1> Y_z = {GPS(2)};
@@ -237,15 +232,12 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
     cv::Matx<double, 1, 1> R_z = {r_gps_z};
 
     // Kalman gain K (3x1 matrix)
-    cv::Matx31d K_z = P_z * H_z.t() * (H_z * P_z * H_z.t() + V * R_z * V).inv();
+    cv::Matx31d K_z = P_z * H_z.t() * ((H_z * P_z * H_z.t() + V * R_z * V).inv());
 
     // correct state and state covariance
     Z = Z + K_z * (Y_z - sensor_z);
     P_z = P_z - K_z * H_z * P_z;
-
-    // set previous state and covariance matrix
-    //Z_prev = Z;
-    //P_z_prev = P_z;
+    
 }
 
 // --------- Magnetic ----------
@@ -260,7 +252,8 @@ void cbMagnet(const geometry_msgs::Vector3Stamped::ConstPtr &msg)
     double mx = msg->vector.x;
     double my = msg->vector.y;
 
-    double alpha = atan2f(my, mx);
+    //TODO: check this
+    double alpha = atan2f(mx, my);
     a_mgn = 2 * M_PI - alpha;
 
     // Y matrix
@@ -283,24 +276,21 @@ void cbMagnet(const geometry_msgs::Vector3Stamped::ConstPtr &msg)
     A = A + K_a * (Y_a - sensor_a);
     P_a = P_a - K_a * H * P_a;
 
-    // set previous state and covariance matrix
-    //A_prev = A;
-    //P_a_prev = P_a;
 }
 
 // --------- Baro ----------
 double z_bar = NaN;
 double r_bar_z;
 // z_bar = z_k + bias + N(0, r_bar_z)
-// So H = {1, 0, 1}
+// So H = {1, 0, -1}
 void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
 {
     if (!ready)
         return;
-
+    
     //// IMPLEMENT BARO ////
     z_bar = msg->altitude;
-
+    
     // Y matrix
     cv::Matx<double, 1, 1> Y_z_bar = {z_bar - Z(2)};
 
@@ -308,18 +298,19 @@ void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
     cv::Matx<double, 1, 1> sensor_z_bar = {Z(0)};
 
     // H and V matrix
-    cv::Matx13d H_z_bar = {1, 0, 1};
+    cv::Matx13d H_z_bar = {1, 0, 0}; // or {1, 0 , 1}
     cv::Matx<double, 1, 1> V_z_bar = {1};
 
     // R matrix
     cv::Matx<double, 1, 1> R_z_bar = {r_bar_z};
 
     // Kalman gain K (3x1 matrix)
-    cv::Matx31d K_z_bar = P_z * H_z_bar.t() * (H_z_bar * P_z * H_z_bar.t() + V_z_bar * R_z_bar * V_z_bar).inv();
+    cv::Matx31d K_z_bar = P_z * H_z_bar.t() * ((H_z_bar * P_z * H_z_bar.t() + V_z_bar * R_z_bar * V_z_bar).inv());
 
     // correct state and state covariance
     Z = Z + K_z_bar * (Y_z_bar - sensor_z_bar);
     P_z = P_z - K_z_bar * H_z_bar * P_z;
+    
 }
 
 // --------- Sonar ----------
@@ -333,7 +324,7 @@ void cbSonar(const sensor_msgs::Range::ConstPtr &msg)
 
     //// IMPLEMENT SONAR ////
     z_snr = msg->range;
-
+    
     // implement a check here
     // if the difference too large, means obstacle underneath
     // no correction is performed
@@ -355,11 +346,12 @@ void cbSonar(const sensor_msgs::Range::ConstPtr &msg)
     cv::Matx<double, 1, 1> R_z_snr = {r_snr_z};
 
     // Kalman gain (3x1 matrix) 
-    cv::Matx31d K_z_snr = P_z * H_z_snr.t() * (H_z_snr * P_z * H_z_snr.t() + V_z_snr * R_z_snr * V_z_snr).inv();
+    cv::Matx31d K_z_snr = P_z * H_z_snr.t() * ((H_z_snr * P_z * H_z_snr.t() + V_z_snr * R_z_snr * V_z_snr).inv());
 
     // correct state and state covariance
     Z = Z + K_z_snr * (Y_z_snr - sensor_z_snr);
     P_z = P_z - K_z_snr * H_z_snr * P_z;
+    
 }
 
 // --------- GROUND TRUTH ----------
@@ -374,6 +366,9 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "hector_motion");
     ros::NodeHandle nh;
+
+    // output sensor to file to calculate variance
+    std::ofstream data_file;
 
     // --------- parse parameters ----------
     double motion_iter_rate;
@@ -464,6 +459,13 @@ int main(int argc, char **argv)
     else
         ROS_WARN("HMOTION: Gyro cannot be calibrated!");
 
+    // open data sensor logging file
+    const int SAMPLE_SIZE = 1000; // taking about 1000 samples
+    int sample_counter = 0;
+
+    std::string data_filename = "/home/ducanh/team13/sensor.txt";
+    data_file.open(data_filename);
+
     // --------- Main loop ----------
 
     ros::Rate rate(motion_iter_rate);
@@ -473,9 +475,18 @@ int main(int argc, char **argv)
     {
         ros::spinOnce(); // update topics
 
+        // print output of sensors to file
+        /*
+        if (sample_counter < SAMPLE_SIZE && !std::isnan(z_bar)) {
+            data_file << z_bar << std::endl;
+            sample_counter++;
+        }
+        */
+
         // Verbose
         if (verbose)
         {
+            
             auto & tp = msg_true.pose.pose.position;
             auto &q = msg_true.pose.pose.orientation;
             double siny_cosp = 2 * (q.w * q.z + q.x * q.y);
@@ -486,8 +497,10 @@ int main(int argc, char **argv)
             ROS_INFO("[HM]   GPS(%7.3lf,%7.3lf,%7.3lf, ---- )", GPS(0), GPS(1), GPS(2));
             ROS_INFO("[HM] MAGNT( ----- , ----- , ----- ,%6.3lf)", a_mgn);
             ROS_INFO("[HM]  BARO( ----- , ----- ,%7.3lf, ---- )", z_bar);
-            ROS_INFO("[HM] BAROB( ----- , ----- ,%7.3lf, ---- )", Z(3));
+            ROS_INFO("[HM] BAROB( ----- , ----- ,%7.3lf, ---- )", Z(2)); // should be Z(2) since index starts from 0
             ROS_INFO("[HM] SONAR( ----- , ----- ,%7.3lf, ---- )", z_snr);
+            
+            //ROS_INFO("%d  %7.3f  %7.3f  %7.3f", sample_counter, z_bar, GPS(1), GPS(2));
         }
 
         //  Publish pose and vel
@@ -520,6 +533,8 @@ int main(int argc, char **argv)
 
         rate.sleep();
     }
+
+    data_file.close();
 
     ROS_INFO("HMOTION: ===== END =====");
     return 0;
