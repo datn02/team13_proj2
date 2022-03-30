@@ -18,7 +18,7 @@ r_gps_x: 0.019543745678429
 r_gps_y: 0.030147210060821
 r_gps_z: 0.0179255983443
 enable_magnet: true
-r_mgn_a: 1.0e-1
+r_mgn_a: 0.00077211251238
 enable_baro: true
 r_bar_z: 0.031883941851213
 enable_sonar: true
