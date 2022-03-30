@@ -102,15 +102,15 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
     
     // x axis
     X = F_x * X + W_x * U_x; // X_prev
-    P_x = F_x * P_x * F_x.t() + W_x * Q_x * W_x.t();
+    P_x = F_x * P_x * (F_x.t()) + W_x * Q_x * (W_x.t());
 
     // y axis
     Y = F_y * Y + W_y * U_y; // Y_prev
-    P_y = F_y * P_y * F_y.t() + W_y * Q_y * W_y.t();
+    P_y = F_y * P_y * (F_y.t()) + W_y * Q_y * (W_y.t());
 
     // z axis
     Z = F_z * Z + W_z * U_z; // Z_prev
-    P_z = F_z * P_z * P_z.t() + W_z * Q_z * W_z.t();
+    P_z = F_z * P_z * (F_z.t()) + W_z * Q_z * (W_z.t());
 
     // angle psi
     A = F_a * A + W_a * U_a; // A_prev
@@ -251,11 +251,11 @@ void cbMagnet(const geometry_msgs::Vector3Stamped::ConstPtr &msg)
     //// IMPLEMENT GPS ////
     double mx = msg->vector.x;
     double my = msg->vector.y;
-
+    
     //TODO: check this
-    double alpha = atan2f(mx, my);
-    a_mgn = 2 * M_PI - alpha;
-
+    double alpha = atan2(my, mx);
+    a_mgn = -1 * alpha;
+    
     // Y matrix
     cv::Matx<double, 1, 1> Y_a = {a_mgn};
 
@@ -270,12 +270,12 @@ void cbMagnet(const geometry_msgs::Vector3Stamped::ConstPtr &msg)
     cv::Matx<double, 1, 1> R_a = {r_mgn_a};
 
     // Kalman gain K (2x1 matrix)
-    cv::Matx21d K_a = P_a * H.t() * (H * P_a * H.t() + V * R_a * V).inv();
+    cv::Matx21d K_a = P_a * H.t() * ((H * P_a * H.t() + V * R_a * V).inv());
 
     // correct state and state covariance
     A = A + K_a * (Y_a - sensor_a);
     P_a = P_a - K_a * H * P_a;
-
+    
 }
 
 // --------- Baro ----------
@@ -298,7 +298,7 @@ void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
     cv::Matx<double, 1, 1> sensor_z_bar = {Z(0)};
 
     // H and V matrix
-    cv::Matx13d H_z_bar = {1, 0, 0}; // or {1, 0 , 1}
+    cv::Matx13d H_z_bar = {1, 0, 1}; // or {1, 0 , 1}
     cv::Matx<double, 1, 1> V_z_bar = {1};
 
     // R matrix
@@ -464,7 +464,7 @@ int main(int argc, char **argv)
     int sample_counter = 0;
 
     std::string data_filename = "/home/ducanh/team13/sensor.txt";
-    data_file.open(data_filename);
+    //data_file.open(data_filename);
 
     // --------- Main loop ----------
 
@@ -477,11 +477,11 @@ int main(int argc, char **argv)
 
         // print output of sensors to file
         /*
-        if (sample_counter < SAMPLE_SIZE && !std::isnan(z_bar)) {
-            data_file << z_bar << std::endl;
+        if (sample_counter < SAMPLE_SIZE && !std::isnan(a_mgn)) {
+            data_file << a_mgn << std::endl;
             sample_counter++;
         }
-        */
+        */ 
 
         // Verbose
         if (verbose)
@@ -500,7 +500,7 @@ int main(int argc, char **argv)
             ROS_INFO("[HM] BAROB( ----- , ----- ,%7.3lf, ---- )", Z(2)); // should be Z(2) since index starts from 0
             ROS_INFO("[HM] SONAR( ----- , ----- ,%7.3lf, ---- )", z_snr);
             
-            //ROS_INFO("%d  %7.3f  %7.3f  %7.3f", sample_counter, z_bar, GPS(1), GPS(2));
+            //ROS_INFO("%d  %7.3f  %7.3f  %7.3f", sample_counter, a_mgn, GPS(1), GPS(2));
         }
 
         //  Publish pose and vel
@@ -534,7 +534,7 @@ int main(int argc, char **argv)
         rate.sleep();
     }
 
-    data_file.close();
+    //data_file.close();
 
     ROS_INFO("HMOTION: ===== END =====");
     return 0;
