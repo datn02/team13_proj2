@@ -43,12 +43,18 @@ std::string to_string(HectorState state)
 bool verbose;
 double initial_x, initial_y, initial_z;
 double x = NaN, y = NaN, z = NaN, a = NaN;
+Position pos_hec(0,0);
+Position pos_rbt(0,0);
+
 void cbHPose(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &msg)
 {
     auto &p = msg->pose.pose.position;
     x = p.x;
     y = p.y;
     z = p.z;
+
+    pos_hec.x = x;
+    pos_hec.y = y;
 
     // euler yaw (ang_rbt) from quaternion <-- stolen from wikipedia
     auto &q = msg->pose.pose.orientation; // reference is always faster than copying. but changing it means changing the referenced object.
@@ -62,6 +68,9 @@ void cbTPose(const geometry_msgs::PoseStamped::ConstPtr &msg)
     auto &p = msg->pose.position;
     turtle_x = p.x;
     turtle_y = p.y;
+
+    pos_rbt.x = turtle_x;
+    pos_rbt.y = turtle_y;
 }
 double vx = NaN, vy = NaN, vz = NaN, va = NaN;
 void cbHVel(const geometry_msgs::Twist::ConstPtr &msg)
@@ -154,40 +163,148 @@ int main(int argc, char **argv)
     ROS_INFO(" HMAIN : ===== BEGIN =====");
     HectorState state = TAKEOFF;
     ros::Rate rate(main_iter_rate);
+
+    // My variables
+    int t = 0; 
+    std::vector<Position> trajectory;
+    Position pos_target;
+    Position pos_goal(goal_x, goal_y);
+    Position pos_start(initial_x, initial_y);
+    double target_dt = 0.05;
+    bool next_state = false; 
+    bool new_trajectory = false;
+    int look_ahead_t_idx = 2 * (int) ((look_ahead / average_speed) / target_dt);
+
+
     while (ros::ok() && nh.param("run", true))
     {
         // get topics
         ros::spinOnce();
+        
 
         //// IMPLEMENT ////
-        // if (state == TAKEOFF)
-        // {
-            // // Disable Rotate
-            // msg_rotate.data = false;
-            // pub_rotate.publish(msg_rotate)
-        // }
-        // else if (state == TURTLE)
-        // {
+        if (state == TAKEOFF)
+        {
+            next_state = false;
+            // Disable Rotate
+            msg_rotate.data = false;
+            pub_rotate.publish(msg_rotate);
+
+            // Setting trajectory points to 2m at the same start
+            msg_traj.poses.clear();
+            msg_target.point.x = pos_start.x;
+            msg_target.point.y = pos_start.y;
+            msg_target.point.z = 2;
+            pub_target.publish(msg_target);
+
+            if (abs(z - 2) < 0.1) next_state = true;
+
+            if (next_state) {
+                state = TURTLE;
+                new_trajectory = true;
+            }
+        }
+        else if (state == TURTLE)
+        {   
+            next_state = false;
+            pos_target = pos_rbt;
+            // if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
             
-        // }
-        // else if (state == START)
-        // {
-            // if (!nh.param("/turtle/run", false))
-            // { // when the turtle reaches the final goal
-                // state = LAND;
-            // }
-        // }
-        // else if (state == GOAL)
-        // {
-            
-        // }
-        // else if (state == LAND)
-        // {
-            
-        // }
+            msg_rotate.data = true;
+            pub_rotate.publish(msg_rotate);
+            if (next_state) {
+                state = GOAL;
+                new_trajectory = true;
+            }
+        }
+        else if (state == START)
+        {
+            next_state = false;
+            pos_target = pos_start;
+            if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
+            if (!nh.param("/turtle/run", false))
+            { // when the turtle reaches the final goal
+                state = LAND;
+                new_trajectory = false;
+            }
+            else{
+                if (next_state) {
+                    state = TURTLE;
+                    new_trajectory = true;
+                }
+            }
+        }
+        else if (state == GOAL)
+        {
+            next_state = false;
+            new_trajectory = true;
+            pos_target = pos_goal;
+            if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
+
+            if (next_state) {
+                state = START;
+                new_trajectory = true;
+            }   
+        }
+        else if (state == LAND)
+        {
+            next_state = false;
+            new_trajectory = false;
+
+            msg_rotate.data = false;
+            pub_rotate.publish(msg_rotate);
+
+            // Landing trajectory
+            msg_traj.poses.clear();
+            msg_target.point.x = pos_start.x;
+            msg_target.point.y = pos_start.y;
+            msg_target.point.z = 0;
+            pub_target.publish(msg_target);
+        }
 
         if (verbose)
             ROS_INFO_STREAM(" HMAIN : " << to_string(state));
+
+        if (new_trajectory){
+            trajectory.clear();
+            trajectory = generate_trajectory_cubic(pos_hec, pos_target, average_speed, target_dt, vx, vy, a);       
+
+            if (trajectory.empty())
+                ROS_WARN(" HMAIN : No trajectory found!!!!");
+            else 
+            { 
+            // publish trajectroy to trajectory topic
+                msg_traj.poses.clear();
+                for (Position &pos : trajectory)
+                {
+                    msg_traj.poses.push_back(geometry_msgs::PoseStamped()); // insert a posestamped initialised to all 0
+                    msg_traj.poses.back().pose.position.x = pos.x;
+                    msg_traj.poses.back().pose.position.y = pos.y;
+                }
+                pub_traj.publish(msg_traj);
+            
+                // get new target
+                t = 0; // first entry
+                // pick the more distant target so turtlebot does not stop intermitently around very close targets when new path is generated
+                if (trajectory.size() > look_ahead_t_idx)
+                    t = look_ahead_t_idx; // this is the average_speed * 15 * target_dt away
+                else { 
+                    t = trajectory.size() - 1;
+                    new_trajectory = false;
+                }
+                
+                pos_target = trajectory[t];
+
+                // publish to target topic
+
+                msg_target.point.x = pos_target.x;
+                msg_target.point.y = pos_target.y;
+                msg_target.point.z = 2;
+                pub_target.publish(msg_target);
+                ROS_WARN("Publised trajectory point: x: %f, y: %f", pos_target.x, pos_target.y);
+            }
+
+        }
 
         rate.sleep();
     }

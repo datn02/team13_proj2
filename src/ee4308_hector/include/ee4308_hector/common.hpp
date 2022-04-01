@@ -1,5 +1,6 @@
 #ifndef COMMON_HPP
 #define COMMON_HPP
+#include <vector>
 
 struct Index
 {
@@ -24,5 +25,10 @@ double dist_euc(double src_x, double src_y, double tgt_x, double tgt_y);
 double heading(Position src, Position tgt); // overload
 double heading(double src_x, double src_y, double tgt_x, double tgt_y);
 double limit_angle(double angle);
+std::vector<Position> generate_trajectory_quintic(Position pos_begin, Position pos_end, double average_speed, 
+                                                    double target_dt, double initial_vel_x, double initial_vel_y, double angle);
+std::vector<Position> generate_trajectory_cubic(Position pos_begin, Position pos_end, double average_speed,
+                                                    double target_dt, double initial_vel_x, double initial_vel_y, double angle);
+std::vector<Position> generate_trajectory_straight(Position pos_begin, Position pos_end, double average_speed, double target_dt);
 
 #endif

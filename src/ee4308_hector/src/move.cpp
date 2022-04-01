@@ -265,7 +265,7 @@ int main(int argc, char **argv)
         // verbose
         if (verbose)
         {
-            // ROS_INFO(" HMOVE : Target(%6.3f, %6.3f, %6.3f) FV(%6.3f) VX(%6.3f) VY(%6.3f) VZ(%7.3f)", target_x, target_y, target_z, cmd_lin_vel, cmd_lin_vel_x, cmd_lin_vel_y, cmd_lin_vel_z);
+            ROS_INFO(" HMOVE : Target(%6.3f, %6.3f, %6.3f) FV(%6.3f) VX(%6.3f) VY(%6.3f) VZ(%7.3f)", target_x, target_y, target_z, cmd_lin_vel_a, cmd_lin_vel_x, cmd_lin_vel_y, cmd_lin_vel_z);
         }
 
         // wait for rate

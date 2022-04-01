@@ -92,3 +92,102 @@ double limit_angle(double angle)
     double result = fmod(angle + M_PI, M_PI*2); // fmod rounds remainders to zero. we want remainders to be +ve like mod() in matlab and % in python
     return result >= 0 ? result - M_PI : result + M_PI;
 }
+
+
+
+std::vector<Position> generate_trajectory_cubic(Position pos_begin, Position pos_end, double average_speed, double target_dt, double initial_vel_x, double initial_vel_y, double angle)
+{
+
+    double s_ang = limit_angle(heading(pos_begin, pos_end));
+    // Tune this
+    // double turn_vel = 0.1;
+
+    double final_vel_x = average_speed * cos(s_ang);
+    double final_vel_y = average_speed * sin(s_ang);
+
+    double Dx = pos_end.x - pos_begin.x;
+    double Dy = pos_end.y - pos_begin.y;
+    double duration = sqrt(Dx * Dx + Dy * Dy) / average_speed;
+
+    double a0 = pos_begin.x;
+    double a1 = initial_vel_x;
+    double a2 = ((-3 / pow(duration, 2)) * pos_begin.x) + ((-2 / duration) * initial_vel_x) + ((3 / pow(duration, 2)) * pos_end.x) + ((-1 / duration) * final_vel_x);
+    double a3 = ((2 / pow(duration, 3)) * pos_begin.x) + ((1 / pow(duration, 2)) * initial_vel_x) + ((-2 / pow(duration, 3)) * pos_end.x) + ((1 / pow(duration, 2)) * final_vel_x);
+
+    double b0 = pos_begin.y;
+    double b1 = initial_vel_y;
+    double b2 = ((-3 / pow(duration, 2)) * pos_begin.y) + ((-2 / duration) * initial_vel_y) + ((3 / pow(duration, 2)) * pos_end.y) + ((-1 / duration) * final_vel_y);
+    double b3 = ((2 / pow(duration, 3)) * pos_begin.y) + ((1 / pow(duration, 2)) * initial_vel_y) + ((-2 / pow(duration, 3)) * pos_end.y) + ((1 / pow(duration, 2)) * final_vel_y);
+
+    std::vector<Position> trajectory = {pos_begin};
+    for (double time = target_dt; time < duration; time += target_dt)
+    {
+        trajectory.emplace_back(
+            a0 + a1 * time + a2 * pow(time, 2) + a3 * pow(time, 3) ,
+            b0 + b1 * time + b2 * pow(time, 2) + b3 * pow(time, 3));
+    }
+    return trajectory;
+}
+
+std::vector<Position> generate_trajectory_quintic(Position pos_begin, Position pos_end, double average_speed, double target_dt, double initial_vel_x, double initial_vel_y, double angle)
+{
+
+    double s_ang = limit_angle(heading(pos_begin, pos_end));
+    // Tune this
+    // double turn_vel = 0.1;
+
+    double final_vel_x = average_speed * cos(s_ang);
+    double final_vel_y = average_speed * sin(s_ang);
+    double acc_x = 0;
+    double acc_y = 0;
+
+    double Dx = pos_end.x - pos_begin.x;
+    double Dy = pos_end.y - pos_begin.y;
+    double duration = sqrt(Dx * Dx + Dy * Dy) / average_speed;
+
+    double a0 = pos_begin.x;
+    double a1 = initial_vel_x;
+    double a2 = 0.5 * acc_x;
+    double a3 = (-10 / pow(duration, 3) * pos_begin.x) - (6 / pow(duration, 2) * initial_vel_x) - ((3 / 2 * duration) * acc_x) + (10 / pow(duration, 3) * pos_end.x) - (4 / pow(duration, 2) * final_vel_x) + ((1 / 2 * duration) * acc_x);
+    double a4 = (15 / pow(duration, 4) * pos_begin.x) + (8 / pow(duration, 3) * initial_vel_x) + (3 / 2 / pow(duration, 2) * acc_x) + (-15 / pow(duration, 4) * pos_end.x) + (7 / pow(duration, 3) * final_vel_x) + (-1 / pow(duration, 2) * acc_x);
+    double a5 = (-6 / pow(duration, 5) * pos_begin.x) + (-3 / pow(duration, 4) * initial_vel_x) + (-1 / 2 / pow(duration, 3) * acc_x) + (6 / pow(duration, 5) * pos_end.x) + (-3 / pow(duration, 4) * final_vel_x) + (1 / 2 / pow(duration, 3) * acc_x);
+
+    double b0 = pos_begin.y;
+    double b1 = initial_vel_y;
+    double b2 = 0.5 * acc_y;
+    double b3 = (-10 / pow(duration, 3) * pos_begin.y) - (6 / pow(duration, 2) * initial_vel_y) - ((3 / 2 * duration) * acc_y) + (10 / pow(duration, 3) * pos_end.y) - (4 / pow(duration, 2) * final_vel_y) + ((1 / 2 * duration) * acc_y);
+    double b4 = (15 / pow(duration, 4) * pos_begin.y) + (8 / pow(duration, 3) * initial_vel_y) + (3 / 2 / pow(duration, 2) * acc_y) + (-15 / pow(duration, 4) * pos_end.y) + (7 / pow(duration, 3) * final_vel_y) + (-1 / pow(duration, 2) * acc_y);
+    double b5 = (-6 / pow(duration, 5) * pos_begin.y) + (-3 / pow(duration, 4) * initial_vel_y) + (-1 / 2 / pow(duration, 3) * acc_y) + (6 / pow(duration, 5) * pos_end.y) + (-3 / pow(duration, 4) * final_vel_y) + (1 / 2 / pow(duration, 3) * acc_y);
+
+    std::vector<Position> trajectory = {pos_begin};
+    for (double time = target_dt; time < duration; time += target_dt)
+    {
+        trajectory.emplace_back(
+            a0 + a1 * time + a2 * pow(time, 2) + a3 * pow(time, 3) + a4 * pow(time, 4) + a5 * pow(time, 5),
+            b0 + b1 * time + b2 * pow(time, 2) + b3 * pow(time, 3) + b4 * pow(time, 4) + b5 * pow(time, 5));
+    }
+    return trajectory;
+}
+
+std::vector<Position> generate_trajectory_straight(Position pos_begin, Position pos_end, double average_speed, double target_dt)
+{
+    // (1) estimate total duration
+    double Dx = pos_end.x - pos_begin.x;
+    double Dy = pos_end.y - pos_begin.y;
+    double duration = sqrt(Dx*Dx + Dy*Dy) / average_speed;
+
+    // (2) generate cubic / quintic trajectory
+    // done by students
+
+    // OR (2) generate targets for each target_dt
+    std::vector<Position> trajectory = {pos_begin};
+    for (double time = target_dt; time < duration; time += target_dt)
+    {
+        trajectory.emplace_back(
+            pos_begin.x + Dx*time / duration,
+            pos_begin.y + Dy*time / duration
+        );
+    }
+
+    return trajectory; 
+}
