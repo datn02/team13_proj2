@@ -201,37 +201,35 @@ int main(int argc, char **argv)
 
             if (next_state) {
                 state = TURTLE;
-                new_trajectory = true;
             }
         }
         else if (state == TURTLE)
         {   
             next_state = false;
+            new_trajectory = true;
             pos_target = pos_rbt;
+<<<<<<< HEAD
             //if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
+=======
+            if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
+>>>>>>> a3e02099dfbbd1585a372fbc5bf75b36106fe56c
             
             msg_rotate.data = true;
             pub_rotate.publish(msg_rotate);
-            if (next_state) {
-                state = GOAL;
-                new_trajectory = true;
-            }
+
+            if (next_state)  state = GOAL;
+
         }
         else if (state == START)
         {
             next_state = false;
+            new_trajectory = true;
             pos_target = pos_start;
             if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
-            if (!nh.param("/turtle/run", false))
-            { // when the turtle reaches the final goal
-                state = LAND;
-                new_trajectory = false;
-            }
-            else{
-                if (next_state) {
-                    state = TURTLE;
-                    new_trajectory = true;
-                }
+            if (next_state) {
+                if (!nh.param("/turtle/run", false)) // when the turtle reaches the final goal
+                    state = LAND;
+                else state = TURTLE;
             }
         }
         else if (state == GOAL)
@@ -241,10 +239,8 @@ int main(int argc, char **argv)
             pos_target = pos_goal;
             if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
 
-            if (next_state) {
-                state = START;
-                new_trajectory = true;
-            }   
+            if (next_state) state = START;
+ 
         }
         else if (state == LAND)
         {
@@ -290,7 +286,6 @@ int main(int argc, char **argv)
                     t = look_ahead_t_idx; // this is the average_speed * 15 * target_dt away
                 else { 
                     t = trajectory.size() - 1;
-                    new_trajectory = false;
                 }
                 
                 pos_target = trajectory[t];

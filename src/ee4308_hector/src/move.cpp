@@ -222,11 +222,11 @@ int main(int argc, char **argv)
         // pid saturation calculation
         // x
         acc_x_est = (pid_x_output - pid_x_output_sat_prev) / dt;
-        pid_x_output_sat = sat(pid_x_output_sat_prev + acc_x_est * dt, sqrt(max_lin_vel));
+        pid_x_output_sat = sat(pid_x_output_sat_prev + acc_x_est * dt, max_lin_vel / sqrt(2));
 
         // y
         acc_y_est = (pid_y_output - pid_y_output_sat_prev) / dt;
-        pid_y_output_sat = sat(pid_y_output_sat_prev + acc_y_est * dt, sqrt(max_lin_vel));
+        pid_y_output_sat = sat(pid_y_output_sat_prev + acc_y_est * dt, max_lin_vel / sqrt(2));
 
         // z
         acc_z_est = (pid_z_output - pid_z_output_sat_prev) / dt;
@@ -251,7 +251,7 @@ int main(int argc, char **argv)
         //cmd_lin_vel_x = pid_x_output_sat;
         //cmd_lin_vel_y = pid_y_output_sat;
         cmd_lin_vel_z = pid_z_output_sat;
-
+        
         if (rotate) {
             cmd_lin_vel_a = yaw_rate;
         }
@@ -280,6 +280,7 @@ int main(int argc, char **argv)
         // verbose
         if (verbose)
         {
+            ROS_INFO(" HMOVE : Current position (%6.3f, %6.3f, %6.3f)" , x, y, z);
             ROS_INFO(" HMOVE : Target(%6.3f, %6.3f, %6.3f) FV(%6.3f) VX(%6.3f) VY(%6.3f) VZ(%7.3f)", target_x, target_y, target_z, cmd_lin_vel_a, cmd_lin_vel_x, cmd_lin_vel_y, cmd_lin_vel_z);
         }
 
