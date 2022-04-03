@@ -208,7 +208,7 @@ int main(int argc, char **argv)
         {   
             next_state = false;
             pos_target = pos_rbt;
-            // if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
+            //if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
             
             msg_rotate.data = true;
             pub_rotate.publish(msg_rotate);
