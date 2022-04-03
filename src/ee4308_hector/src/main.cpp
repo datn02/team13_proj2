@@ -282,7 +282,6 @@ int main(int argc, char **argv)
                     t = look_ahead_t_idx; // this is the average_speed * 15 * target_dt away
                 else { 
                     t = trajectory.size() - 1;
-                    new_trajectory = false;
                 }
                 
                 pos_target = trajectory[t];
