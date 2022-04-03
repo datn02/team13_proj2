@@ -201,37 +201,31 @@ int main(int argc, char **argv)
 
             if (next_state) {
                 state = TURTLE;
-                new_trajectory = true;
             }
         }
         else if (state == TURTLE)
         {   
             next_state = false;
+            new_trajectory = true;
             pos_target = pos_rbt;
-            // if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
+            if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
             
             msg_rotate.data = true;
             pub_rotate.publish(msg_rotate);
-            if (next_state) {
-                state = GOAL;
-                new_trajectory = true;
-            }
+
+            if (next_state)  state = GOAL;
+
         }
         else if (state == START)
         {
             next_state = false;
+            new_trajectory = true;
             pos_target = pos_start;
             if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
-            if (!nh.param("/turtle/run", false))
-            { // when the turtle reaches the final goal
-                state = LAND;
-                new_trajectory = false;
-            }
-            else{
-                if (next_state) {
-                    state = TURTLE;
-                    new_trajectory = true;
-                }
+            if (next_state) {
+                if (!nh.param("/turtle/run", false)) // when the turtle reaches the final goal
+                    state = LAND;
+                else state = TURTLE;
             }
         }
         else if (state == GOAL)
@@ -241,10 +235,8 @@ int main(int argc, char **argv)
             pos_target = pos_goal;
             if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
 
-            if (next_state) {
-                state = START;
-                new_trajectory = true;
-            }   
+            if (next_state) state = START;
+ 
         }
         else if (state == LAND)
         {

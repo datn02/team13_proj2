@@ -232,14 +232,26 @@ int main(int argc, char **argv)
         acc_z_est = (pid_z_output - pid_z_output_sat_prev) / dt;
         pid_z_output_sat = sat(pid_z_output_sat_prev + acc_z_est * dt, max_z_vel);
 
+
+        /*
+        pid_roll_setpoint_base = 1500 + ((float)(channel_1 - 1500) * cos(heading_lock_course_deviation * 0.017453)) + ((float)(channel_2 - 1500) * cos((heading_lock_course_deviation - 90) * 0.017453));
+         pid_pitch_setpoint_base = 1500 + ((float)(channel_2 - 1500) * cos(heading_lock_course_deviation * 0.017453)) + ((float)(channel_1 - 1500) * cos((heading_lock_course_deviation + 90) * 0.017453));
+        */
+
+        double heading = a * 180.0f / M_PI;
+
+        if (heading < 0 ) {
+            heading = 360.0f + heading;
+        }
+
+        cmd_lin_vel_x = pid_x_output_sat * cos(heading * (M_PI / 180.0f)) + pid_y_output_sat * cos((heading - 90.0f) * (M_PI / 180.0f));
+        cmd_lin_vel_y = pid_y_output_sat * cos(heading * (M_PI / 180.0f)) + pid_x_output_sat * cos((heading + 90.0f) * (M_PI / 180.0f));
+
         // set to variable to publish
-        cmd_lin_vel_x = pid_x_output_sat;
-        cmd_lin_vel_y = pid_y_output_sat;
+        //cmd_lin_vel_x = pid_x_output_sat;
+        //cmd_lin_vel_y = pid_y_output_sat;
         cmd_lin_vel_z = pid_z_output_sat;
-
-        cmd_lin_vel_x = 2;
-        cmd_lin_vel_y = 2;
-
+        
         if (rotate) {
             cmd_lin_vel_a = yaw_rate;
         }
