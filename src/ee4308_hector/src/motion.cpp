@@ -15,7 +15,7 @@
 #include "common.hpp"
 #include <string>
 #include <fstream>
-
+#include <std_msgs/Bool.h>
 
 #define NaN std::numeric_limits<double>::quiet_NaN()
 
@@ -114,7 +114,7 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
 
     // angle psi
     A = F_a * A + W_a * U_a; // A_prev
-    P_a = F_a * P_a * F_a.t() + W_a * Q_a * W_a.t();
+    P_a = F_a * P_a * (F_a.t()) + W_a * Q_a * (W_a.t());
 }
 
 // --------- GPS ----------
@@ -161,7 +161,7 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
                         cos(lat), 0, -1 * sin(lat)};
     
     // local NED matrix
-    cv::Matx31d NED = Re_n.t() * (ECEF - initial_ECEF);
+    cv::Matx31d NED = (Re_n.t()) * (ECEF - initial_ECEF);
 
     // rotational matrix from local NED to Gazebo frame
     cv::Matx33d Rm_n = {1, 0, 0,
@@ -188,7 +188,7 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
     cv::Matx<double, 1, 1> R_x = {r_gps_x};
     
     // Kalman gain K (2x1 matrix)
-    cv::Matx21d K_x = P_x * H.t() * ((H * P_x * H.t() + V * R_x * V).inv());
+    cv::Matx21d K_x = P_x * (H.t()) * ((H * P_x * (H.t()) + V * R_x * V).inv());
 
     // correct state and state covariance
     X = X + K_x * (Y_x - sensor_x);
@@ -209,7 +209,7 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
     cv::Matx<double, 1, 1> R_y = {r_gps_y};
 
     // Kalman gain K (2x1 matrix)
-    cv::Matx21d K_y = P_y * H.t() * ((H * P_y * H.t() + V * R_y * V).inv());
+    cv::Matx21d K_y = P_y * (H.t()) * ((H * P_y * (H.t()) + V * R_y * V).inv());
 
     // correct state and state covariance
     Y = Y + K_y * (Y_y - sensor_y);
@@ -220,8 +220,6 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
     
     cv::Matx13d H_z = {1, 0, 0};
     
-    //cv::Matx12d H_z = {1, 0};
-
     // Y matrix
     cv::Matx<double, 1, 1> Y_z = {GPS(2)};
 
@@ -232,7 +230,7 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
     cv::Matx<double, 1, 1> R_z = {r_gps_z};
 
     // Kalman gain K (3x1 matrix)
-    cv::Matx31d K_z = P_z * H_z.t() * ((H_z * P_z * H_z.t() + V * R_z * V).inv());
+    cv::Matx31d K_z = P_z * (H_z.t()) * ((H_z * P_z * (H_z.t()) + V * R_z * V).inv());
 
     // correct state and state covariance
     Z = Z + K_z * (Y_z - sensor_z);
@@ -270,7 +268,7 @@ void cbMagnet(const geometry_msgs::Vector3Stamped::ConstPtr &msg)
     cv::Matx<double, 1, 1> R_a = {r_mgn_a};
 
     // Kalman gain K (2x1 matrix)
-    cv::Matx21d K_a = P_a * H.t() * ((H * P_a * H.t() + V * R_a * V).inv());
+    cv::Matx21d K_a = P_a * (H.t()) * ((H * P_a * (H.t()) + V * R_a * V).inv());
 
     // correct state and state covariance
     A = A + K_a * (Y_a - sensor_a);
@@ -282,7 +280,7 @@ void cbMagnet(const geometry_msgs::Vector3Stamped::ConstPtr &msg)
 double z_bar = NaN;
 double r_bar_z;
 // z_bar = z_k + bias + N(0, r_bar_z)
-// So H = {1, 0, -1}
+// So H = {1, 0, 1}
 void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
 {
     if (!ready)
@@ -292,10 +290,13 @@ void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
     z_bar = msg->altitude;
     
     // Y matrix
-    cv::Matx<double, 1, 1> Y_z_bar = {z_bar - Z(2)};
+    cv::Matx<double, 1, 1> Y_z_bar = {z_bar};
 
     // forward sensor model
     cv::Matx<double, 1, 1> sensor_z_bar = {Z(0)};
+
+    // bias
+    cv::Matx<double, 1, 1> bias_bar = {Z(2)};
 
     // H and V matrix
     cv::Matx13d H_z_bar = {1, 0, 1}; // or {1, 0 , 1}
@@ -305,10 +306,10 @@ void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
     cv::Matx<double, 1, 1> R_z_bar = {r_bar_z};
 
     // Kalman gain K (3x1 matrix)
-    cv::Matx31d K_z_bar = P_z * H_z_bar.t() * ((H_z_bar * P_z * H_z_bar.t() + V_z_bar * R_z_bar * V_z_bar).inv());
+    cv::Matx31d K_z_bar = P_z * (H_z_bar.t()) * ((H_z_bar * P_z * (H_z_bar.t()) + V_z_bar * R_z_bar * V_z_bar).inv());
 
     // correct state and state covariance
-    Z = Z + K_z_bar * (Y_z_bar - sensor_z_bar);
+    Z = Z + K_z_bar * (Y_z_bar - sensor_z_bar - bias_bar);
     P_z = P_z - K_z_bar * H_z_bar * P_z;
     
 }
@@ -316,7 +317,7 @@ void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
 // --------- Sonar ----------
 double z_snr = NaN;
 double r_snr_z;
-const double OBSTACLE_THRESH = 0.5;
+const double OBSTACLE_THRESH = 0.2f;
 void cbSonar(const sensor_msgs::Range::ConstPtr &msg)
 {
     if (!ready)
@@ -327,10 +328,7 @@ void cbSonar(const sensor_msgs::Range::ConstPtr &msg)
     
     // implement a check here
     // if the difference too large, means obstacle underneath
-    // no correction is performed
-    if (fabs(z_snr - Z(0)) > OBSTACLE_THRESH + 1e-5) {
-        return;
-    }
+    // no correction is performed   
     
     // Y matrix
     cv::Matx<double, 1, 1> Y_z_snr = {z_snr};
@@ -498,6 +496,7 @@ int main(int argc, char **argv)
             ROS_INFO("[HM] MAGNT( ----- , ----- , ----- ,%6.3lf)", a_mgn);
             ROS_INFO("[HM]  BARO( ----- , ----- ,%7.3lf, ---- )", z_bar);
             ROS_INFO("[HM] BAROB( ----- , ----- ,%7.3lf, ---- )", Z(2)); // should be Z(2) since index starts from 0
+            ROS_INFO("[HM] BAROT( ----- , ----- ,%7.3lf, ---- )", z_bar - Z(2));
             ROS_INFO("[HM] SONAR( ----- , ----- ,%7.3lf, ---- )", z_snr);
             
             //ROS_INFO("%d  %7.3f  %7.3f  %7.3f", sample_counter, a_mgn, GPS(1), GPS(2));
