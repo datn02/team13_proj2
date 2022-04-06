@@ -301,10 +301,10 @@ int main(int argc, char **argv)
             }
             else
             { // robot lies on inaccessible cell, or if goal lies on inaccessible cell
-                if (!grid.get_cell(pos_rbt))
-                    ROS_WARN(" TMAIN : Robot lies on inaccessible area. No path can be found");
-                if (!grid.get_cell(pos_goal))
-                    ROS_WARN(" TMAIN : Goal lies on inaccessible area. No path can be found");
+                if (!grid.get_cell(pos_rbt)) {}
+                    //ROS_WARN(" TMAIN : Robot lies on inaccessible area. No path can be found");
+                if (!grid.get_cell(pos_goal)) {}
+                    //ROS_WARN(" TMAIN : Goal lies on inaccessible area. No path can be found");
             }
         }
 
