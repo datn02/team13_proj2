@@ -208,11 +208,7 @@ int main(int argc, char **argv)
             next_state = false;
             new_trajectory = true;
             pos_target = pos_rbt;
-<<<<<<< HEAD
-            //if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
-=======
             if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
->>>>>>> a3e02099dfbbd1585a372fbc5bf75b36106fe56c
             
             msg_rotate.data = true;
             pub_rotate.publish(msg_rotate);
@@ -296,7 +292,7 @@ int main(int argc, char **argv)
                 msg_target.point.y = pos_target.y;
                 msg_target.point.z = 2;
                 pub_target.publish(msg_target);
-                ROS_WARN("Publised trajectory point: x: %f, y: %f", pos_target.x, pos_target.y);
+                //ROS_WARN("Publised trajectory point: x: %f, y: %f", pos_target.x, pos_target.y);
             }
 
         }
