@@ -57,6 +57,9 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "turtle_move");
     ros::NodeHandle nh;
+    std::ofstream data_file;
+
+    double begin = ros::Time::now().toSec();
 
     // --------- parse parameters ----------
     bool enable_move;
@@ -97,6 +100,10 @@ int main(int argc, char **argv)
     double move_iter_rate;
     if (!nh.param("move_iter_rate", move_iter_rate, 25.0))
         ROS_WARN(" HMOVE : Param move_iter_rate not found, set to 25");
+
+    std::string data_filename = "/home/bioniclelee/pidTuning/";
+    data_filename = data_filename + std::to_string(Kp_lin) + "_" + std::to_string(Ki_lin) + "_" + std::to_string(Kd_lin) + ".txt"; 
+    data_file.open(data_filename);
     
     // --------- Enable Motors ----------
     ROS_INFO(" HMOVE : Enabling motors...");
@@ -277,6 +284,8 @@ int main(int argc, char **argv)
         pid_y_output_sat_prev = pid_y_output_sat;
         pid_z_output_sat_prev = pid_z_output_sat;
 
+        data_file << ros::Time::now().toSec() - begin << "\t" << pos_x_err << "\t" << pos_y_err << "\t" << pos_z_err << std::endl;
+
         // verbose
         if (verbose)
         {
@@ -299,6 +308,7 @@ int main(int argc, char **argv)
     ROS_INFO(" HMOVE : Motors Disabled");
     en_mtrs_srv.request.enable = false;
     en_mtrs.call(en_mtrs_srv);
+    data_file.close();
 
     ROS_INFO(" HMOVE : ===== END =====");
 

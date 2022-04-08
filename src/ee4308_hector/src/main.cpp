@@ -11,6 +11,7 @@
 #include <std_msgs/Bool.h>
 #include <opencv2/core/core.hpp>
 #include "common.hpp"
+#include <fstream>
 #define NaN std::numeric_limits<double>::quiet_NaN()
 
 enum HectorState
@@ -85,6 +86,9 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "hector_main");
     ros::NodeHandle nh;
+    std::ofstream data_file;
+
+    double begin = ros::Time::now().toSec();
 
     // Make sure motion and move can run (fail safe)
     nh.setParam("run", true); // turns off other nodes
@@ -112,6 +116,10 @@ int main(int argc, char **argv)
         ROS_WARN(" HMAIN : Param average_speed not found, set to 2.0");
     if (!nh.param("verbose_main", verbose, true))
         ROS_WARN(" HMAIN : Param verbose_main not found, set to false");
+
+    std::string data_filename = "/home/bioniclelee/droneDrift/drift.txt";
+    data_file.open(data_filename);
+
     // get the final goal position of turtle
     std::string goal_str;
     double goal_x = NaN, goal_y = NaN;
@@ -181,7 +189,7 @@ int main(int argc, char **argv)
         // get topics
         ros::spinOnce();
         
-
+        data_file << ros::Time::now().toSec() - begin << "\t" << to_string(state) << "\t" << dist_euc(pos_hec, pos_start) << "\t" << dist_euc(pos_hec, pos_rbt) << "\t" << dist_euc(pos_hec, pos_goal) << std::endl;
         //// IMPLEMENT ////
         if (state == TAKEOFF)
         {
@@ -235,7 +243,12 @@ int main(int argc, char **argv)
             pos_target = pos_goal;
             if (dist_euc(pos_hec, pos_target) < close_enough) next_state = true;
 
-            if (next_state) state = START;
+            if (next_state) state = TURTLE;
+            // if (next_state) {
+            //     if (!nh.param("/turtle/run", false)) // when the turtle reaches the final goal
+            //         state = LAND;
+            //     else state = TURTLE;
+            // }
  
         }
         else if (state == LAND)
@@ -243,8 +256,10 @@ int main(int argc, char **argv)
             next_state = false;
             new_trajectory = false;
 
-            msg_rotate.data = false;
+            msg_rotate.data = false;S
             pub_rotate.publish(msg_rotate);
+
+            ROS_WARN("landing");
 
             // Landing trajectory
             msg_traj.poses.clear();
@@ -306,6 +321,7 @@ int main(int argc, char **argv)
     }
 
     nh.setParam("run", false); // turns off other nodes
+    data_file.close();
     ROS_INFO(" HMAIN : ===== END =====");
     return 0;
 }
