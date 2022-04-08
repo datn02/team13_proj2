@@ -252,6 +252,11 @@ int main(int argc, char **argv)
             msg_target.point.y = pos_start.y;
             msg_target.point.z = 0;
             pub_target.publish(msg_target);
+
+            // turn off everything
+            if (z < close_enough - 1e-5) {
+                nh.setParam("run", false); // turns off other nodes
+            }
         }
 
         if (verbose)
