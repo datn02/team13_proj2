@@ -194,7 +194,7 @@ int main(int argc, char **argv)
             msg_traj.poses.clear();
             msg_target.point.x = pos_start.x;
             msg_target.point.y = pos_start.y;
-            msg_target.point.z = 2;
+            msg_target.point.z = height;
             pub_target.publish(msg_target);
 
             if (abs(z - 2) < 0.1) next_state = true;
@@ -208,7 +208,7 @@ int main(int argc, char **argv)
             next_state = false;
             new_trajectory = true;
             pos_target = pos_rbt;
-            if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
+            if (dist_euc(pos_hec, pos_target) < close_enough) next_state = true;
             
             msg_rotate.data = true;
             pub_rotate.publish(msg_rotate);
@@ -221,7 +221,7 @@ int main(int argc, char **argv)
             next_state = false;
             new_trajectory = true;
             pos_target = pos_start;
-            if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
+            if (dist_euc(pos_hec, pos_target) < close_enough) next_state = true;
             if (next_state) {
                 if (!nh.param("/turtle/run", false)) // when the turtle reaches the final goal
                     state = LAND;
@@ -233,7 +233,7 @@ int main(int argc, char **argv)
             next_state = false;
             new_trajectory = true;
             pos_target = pos_goal;
-            if (dist_euc(pos_hec, pos_target) < look_ahead) next_state = true;
+            if (dist_euc(pos_hec, pos_target) < close_enough) next_state = true;
 
             if (next_state) state = START;
  
@@ -290,7 +290,7 @@ int main(int argc, char **argv)
 
                 msg_target.point.x = pos_target.x;
                 msg_target.point.y = pos_target.y;
-                msg_target.point.z = 2;
+                msg_target.point.z = height;
                 pub_target.publish(msg_target);
                 //ROS_WARN("Publised trajectory point: x: %f, y: %f", pos_target.x, pos_target.y);
             }
