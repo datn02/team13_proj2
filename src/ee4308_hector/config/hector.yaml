@@ -8,7 +8,7 @@ average_speed: 2.0
 
 # motion
 verbose_motion: true
-use_ground_truth: true
+use_ground_truth: false
 qa: 1
 qx: 1
 qy: 1
