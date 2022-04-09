@@ -457,12 +457,6 @@ int main(int argc, char **argv)
     else
         ROS_WARN("HMOTION: Gyro cannot be calibrated!");
 
-    // open data sensor logging file
-    const int SAMPLE_SIZE = 1000; // taking about 1000 samples
-    int sample_counter = 0;
-
-    std::string data_filename = "/home/ducanh/team13/sensor.txt";
-    //data_file.open(data_filename);
 
     // --------- Main loop ----------
 
@@ -472,14 +466,6 @@ int main(int argc, char **argv)
     while (ros::ok() && nh.param("run", true))
     {
         ros::spinOnce(); // update topics
-
-        // print output of sensors to file
-        /*
-        if (sample_counter < SAMPLE_SIZE && !std::isnan(a_mgn)) {
-            data_file << a_mgn << std::endl;
-            sample_counter++;
-        }
-        */ 
 
         // Verbose
         if (verbose)
@@ -499,7 +485,6 @@ int main(int argc, char **argv)
             ROS_INFO("[HM] BAROT( ----- , ----- ,%7.3lf, ---- )", z_bar - Z(2));
             ROS_INFO("[HM] SONAR( ----- , ----- ,%7.3lf, ---- )", z_snr);
             
-            //ROS_INFO("%d  %7.3f  %7.3f  %7.3f", sample_counter, a_mgn, GPS(1), GPS(2));
         }
 
         //  Publish pose and vel
