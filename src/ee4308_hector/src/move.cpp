@@ -219,24 +219,15 @@ int main(int argc, char **argv)
         pid_y_output = pid_y_p_term + pid_y_i_term + pid_y_d_term;
         pid_z_output = pid_z_p_term + pid_z_i_term + pid_z_d_term;
 
+        
         // pid saturation calculation
-        // x
-        acc_x_est = (pid_x_output - pid_x_output_sat_prev) / dt;
-        pid_x_output_sat = sat(pid_x_output_sat_prev + acc_x_est * dt, max_lin_vel / sqrt(2));
-
-        // y
-        acc_y_est = (pid_y_output - pid_y_output_sat_prev) / dt;
-        pid_y_output_sat = sat(pid_y_output_sat_prev + acc_y_est * dt, max_lin_vel / sqrt(2));
 
         // z
         acc_z_est = (pid_z_output - pid_z_output_sat_prev) / dt;
         pid_z_output_sat = sat(pid_z_output_sat_prev + acc_z_est * dt, max_z_vel);
 
 
-        /*
-        pid_roll_setpoint_base = 1500 + ((float)(channel_1 - 1500) * cos(heading_lock_course_deviation * 0.017453)) + ((float)(channel_2 - 1500) * cos((heading_lock_course_deviation - 90) * 0.017453));
-         pid_pitch_setpoint_base = 1500 + ((float)(channel_2 - 1500) * cos(heading_lock_course_deviation * 0.017453)) + ((float)(channel_1 - 1500) * cos((heading_lock_course_deviation + 90) * 0.017453));
-        */
+        /* ----- heading lock implementation ----- */
 
         double heading = a * 180.0f / M_PI;
 
@@ -244,12 +235,11 @@ int main(int argc, char **argv)
             heading = 360.0f + heading;
         }
 
-        cmd_lin_vel_x = pid_x_output_sat * cos(heading * (M_PI / 180.0f)) + pid_y_output_sat * cos((heading - 90.0f) * (M_PI / 180.0f));
-        cmd_lin_vel_y = pid_y_output_sat * cos(heading * (M_PI / 180.0f)) + pid_x_output_sat * cos((heading + 90.0f) * (M_PI / 180.0f));
+        cmd_lin_vel_x = sat(pid_x_output * cos(heading * (M_PI / 180.0f)) + pid_y_output * cos((heading - 90.0f) * (M_PI / 180.0f)), sqrt(max_lin_vel));
+        cmd_lin_vel_y = sat(pid_y_output * cos(heading * (M_PI / 180.0f)) + pid_x_output * cos((heading + 90.0f) * (M_PI / 180.0f)), sqrt(max_lin_vel));
+
 
         // set to variable to publish
-        //cmd_lin_vel_x = pid_x_output_sat;
-        //cmd_lin_vel_y = pid_y_output_sat;
         cmd_lin_vel_z = pid_z_output_sat;
         
         if (rotate) {
@@ -273,8 +263,8 @@ int main(int argc, char **argv)
         pos_y_err_prev = pos_y_err;
         pos_z_err_prev = pos_z_err;
 
-        pid_x_output_sat_prev = pid_x_output_sat;
-        pid_y_output_sat_prev = pid_y_output_sat;
+        //pid_x_output_sat_prev = pid_x_output_sat;
+        //pid_y_output_sat_prev = pid_y_output_sat;
         pid_z_output_sat_prev = pid_z_output_sat;
 
         // verbose
