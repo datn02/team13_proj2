@@ -69,9 +69,21 @@ void cbTPose(const geometry_msgs::PoseStamped::ConstPtr &msg)
     turtle_x = p.x;
     turtle_y = p.y;
 
-    pos_rbt.x = turtle_x;
-    pos_rbt.y = turtle_y;
+    // pos_rbt.x = turtle_x;
+    // pos_rbt.y = turtle_y;
 }
+
+double pred_x = NaN, pred_y = NaN;
+void cbPredPose(const geometry_msgs::PointStamped::ConstPtr &msg)
+{
+    auto &p = msg->point;
+    pred_x = p.x;
+    pred_y = p.y;
+
+    pos_rbt.x = pred_x;
+    pos_rbt.y = pred_y;
+}
+
 double vx = NaN, vy = NaN, vz = NaN, va = NaN;
 void cbHVel(const geometry_msgs::Twist::ConstPtr &msg)
 {
@@ -143,6 +155,7 @@ int main(int argc, char **argv)
     // --------- Subscribers ----------
     ros::Subscriber sub_hpose = nh.subscribe("pose", 1, &cbHPose);
     ros::Subscriber sub_tpose = nh.subscribe("/turtle/pose", 1, &cbTPose);
+    ros::Subscriber sub_pred_pose = nh.subscribe("/turtle/target", 1, &cbPredPose);
     ros::Subscriber sub_hvel = nh.subscribe("velocity", 1, &cbHVel);
 
     // --------- Publishers ----------
@@ -264,7 +277,7 @@ int main(int argc, char **argv)
 
         if (new_trajectory){
             trajectory.clear();
-            trajectory = generate_trajectory_quintic(pos_hec, pos_target, average_speed, target_dt, vx, vy, a);       
+            trajectory = generate_trajectory_cubic(pos_hec, pos_target, average_speed, target_dt, vx, vy, a);       
 
             if (trajectory.empty())
                 ROS_WARN(" HMAIN : No trajectory found!!!!");
@@ -277,6 +290,7 @@ int main(int argc, char **argv)
                     msg_traj.poses.push_back(geometry_msgs::PoseStamped()); // insert a posestamped initialised to all 0
                     msg_traj.poses.back().pose.position.x = pos.x;
                     msg_traj.poses.back().pose.position.y = pos.y;
+                    msg_traj.poses.back().pose.position.z = 2;
                 }
                 pub_traj.publish(msg_traj);
             
