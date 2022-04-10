@@ -8,10 +8,10 @@ average_speed: 2.0
 
 # motion
 verbose_motion: true
-use_ground_truth: true
+use_ground_truth: false
 qa: 3.85
-qx: 1.7
-qy: 0.5
+qx: 2.8
+qy: 2.7
 qz: 1.2
 enable_gps: true
 r_gps_x: 0.059887325870381
