@@ -254,20 +254,21 @@ int main(int argc, char **argv)
         else if (state == LAND)
         {
             next_state = false;
-            new_trajectory = false;
+            new_trajectory = true;
 
             msg_rotate.data = false;
             pub_rotate.publish(msg_rotate);
 
             // Landing trajectory
-            msg_traj.poses.clear();
-            msg_target.point.x = pos_start.x;
-            msg_target.point.y = pos_start.y;
-            msg_target.point.z = 0;
-            pub_target.publish(msg_target);
+            //msg_traj.poses.clear();
+            //msg_target.point.x = pos_start.x;
+            //msg_target.point.y = pos_start.y;
+            //msg_target.point.z = 0;
+            //pub_target.publish(msg_target);
+            pos_target = pos_start;
 
             // turn off everything
-            if (z < close_enough - 1e-5) {
+            if (dist_euc(pos_hec, pos_target) < close_enough && (z < 0.2 - 1e-5)) {
                 nh.setParam("run", false); // turns off other nodes
             }
         }
@@ -290,7 +291,7 @@ int main(int argc, char **argv)
                     msg_traj.poses.push_back(geometry_msgs::PoseStamped()); // insert a posestamped initialised to all 0
                     msg_traj.poses.back().pose.position.x = pos.x;
                     msg_traj.poses.back().pose.position.y = pos.y;
-                    msg_traj.poses.back().pose.position.z = 2;
+                    msg_traj.poses.back().pose.position.z = height;
                 }
                 pub_traj.publish(msg_traj);
             
@@ -309,7 +310,12 @@ int main(int argc, char **argv)
 
                 msg_target.point.x = pos_target.x;
                 msg_target.point.y = pos_target.y;
-                msg_target.point.z = height;
+                if (state == LAND) {
+                    msg_target.point.z = 0;
+                }
+                else {
+                    msg_target.point.z = height;
+                }
                 pub_target.publish(msg_target);
                 //ROS_WARN("Publised trajectory point: x: %f, y: %f", pos_target.x, pos_target.y);
             }
