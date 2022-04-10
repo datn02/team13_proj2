@@ -22,7 +22,7 @@ r_mgn_a: 0.000761616188698
 enable_baro: true
 r_bar_z: 0.032993641582004
 enable_sonar: true
-r_snr_z: 2.64584397764289E-05
+r_snr_z: 0.000026458
 motion_iter_rate: 20
 
 # move
